@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Real-Time Countdown Timer</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  button { margin-right: 10px; padding: 8px 16px; }
+  #log { white-space: pre; border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h2>実時間方式カウントダウン・エラプス測定タイマー</h2>
+
+<div>
+  <label>試験時間（分）：<input id="startMin" type="number" value="80"></label>
+</div>
+
+<div style="margin-top:10px;">
+  <button id="startBtn">Start</button>
+  <button id="stopBtn">Stop</button>
+  <button id="resetBtn">Reset</button>
+  <button id="elapseBtn">Elapse</button>
+</div>
+
+<h3>残り時間：<span id="timeDisplay">0:00</span></h3>
+
+<h3>記録一覧</h3>
+<div id="log"></div>
+
+<script>
+let duration = 0;              // 試験時間（秒）
+let endTime = null;            // 終了予定時刻（ミリ秒）
+let pausedRemaining = null;    // 一時停止時の残り秒数
+let timer = null;
+let logs = [];
+let lastElapse = null;
+
+// 秒 → mm:ss
+function format(sec) {
+  sec = Math.max(0, sec);
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+// 表示更新
+function updateDisplay() {
+  const now = Date.now();
+  let remaining;
+
+  if (endTime) {
+    remaining = Math.round((endTime - now) / 1000);
+  } else if (pausedRemaining !== null) {
+    remaining = pausedRemaining;
+  } else {
+    remaining = duration;
+  }
+
+  document.getElementById("timeDisplay").textContent = format(remaining);
+
+  if (remaining <= 0 && timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+}
+
+// Start（再開含む）
+function startTimer() {
+  if (!endTime) {
+    const minutes = parseFloat(document.getElementById("startMin").value);
+    duration = minutes * 60;
+
+    if (pausedRemaining !== null) {
+      endTime = Date.now() + pausedRemaining * 1000;
+    } else {
+      endTime = Date.now() + duration * 1000;
+    }
+  }
+
+  if (!timer) {
+    timer = setInterval(updateDisplay, 200);
+  }
+}
+
+// Stop（一時停止）
+function stopTimer() {
+  if (endTime) {
+    pausedRemaining = Math.round((endTime - Date.now()) / 1000);
+  }
+  endTime = null;
+
+  clearInterval(timer);
+  timer = null;
+}
+
+// Reset
+function resetTimer() {
+  stopTimer();
+  const minutes = parseFloat(document.getElementById("startMin").value);
+  duration = minutes * 60;
+  pausedRemaining = duration;
+  endTime = null;
+
+  logs = [];
+  lastElapse = duration;
+
+  updateDisplay();
+  updateLogDisplay();
+}
+
+// Elapse（記録）
+function recordElapse() {
+  let remaining;
+
+  if (endTime) {
+    remaining = Math.round((endTime - Date.now()) / 1000);
+  } else if (pausedRemaining !== null) {
+    remaining = pausedRemaining;
+  } else {
+    remaining = duration;
+  }
+
+  if (lastElapse === null) lastElapse = remaining;
+
+  const diff = lastElapse - remaining;
+
+  logs.push({
+    time: format(remaining),
+    diff: format(diff)
+  });
+
+  lastElapse = remaining;
+  updateLogDisplay();
+}
+
+// 記録一覧表示
+function updateLogDisplay() {
+  const logDiv = document.getElementById("log");
+  let text = "";
+  logs.forEach((l, i) => {
+    text += `${i + 1}. Remain: ${l.time}   (-${l.diff})\n`;
+  });
+  logDiv.textContent = text;
+}
+
+// Ctrl+C でコピー
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.key === "c") {
+    const text = logs.map((l, i) =>
+      `${i + 1}. Remain: ${l.time} (-${l.diff})`
+    ).join("\n");
+    navigator.clipboard.writeText(text);
+  }
+});
+
+// ボタン
+document.getElementById("startBtn").onclick = startTimer;
+document.getElementById("stopBtn").onclick = stopTimer;
+document.getElementById("resetBtn").onclick = resetTimer;
+document.getElementById("elapseBtn").onclick = recordElapse;
+
+// 初期表示
+resetTimer();
+</script>
+
+</body>
+</html>
